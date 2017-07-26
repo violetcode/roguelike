@@ -24,10 +24,10 @@ def main():
     max_monsters_per_room = 3
 
     colors = {
-        'dark_wall': libtcod.Color(0, 0, 100),
-        'dark_ground': libtcod.Color(50, 50, 150),
-        'light_wall': libtcod.Color(130, 110, 50),
-        'light_ground': libtcod.Color(200, 180, 50)
+        'dark_wall': libtcod.darkest_violet,
+        'dark_ground': libtcod.darker_violet,
+        'light_wall': libtcod.darkest_purple,
+        'light_ground': libtcod.darker_purple,
     }
 
     player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True)
