@@ -12,8 +12,8 @@ libtcod.console_init_root(SCREEN_WIDTH, SCREEN_HEIGHT, 'Roguelike Game', False)
 libtcod.sys_set_fps(LIMIT_FPS)
 
 # initial player position
-playerx = SCREEN_WIDTH/2
-playery = SCREEN_HEIGHT/2
+playerx = SCREEN_WIDTH//2
+playery = SCREEN_HEIGHT//2
 
 # Handle user keypresses
 def handle_keys():
