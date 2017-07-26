@@ -34,10 +34,10 @@ class Tile:
         self.explored = False
 
 class Map:
-    color_dark_wall = libtcod.Color(0, 0, 100)
-    color_light_wall = libtcod.Color(130, 110, 50)
-    color_dark_ground = libtcod.Color(50, 50, 150)
-    color_light_ground = libtcod.Color(200, 180, 50)
+    color_dark_wall = libtcod.darkest_purple
+    color_light_wall = libtcod.darkest_purple
+    color_dark_ground = libtcod.darker_purple
+    color_light_ground = libtcod.desaturated_purple
 
     def __init__(self, console, width, height):
         self.con = console
