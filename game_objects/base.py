@@ -16,10 +16,11 @@ class BaseObject:
             self.x += dx
             self.y += dy
 
-    def draw(self):
-        #set the color and then draw the character that represents this object at its position
-        libtcod.console_set_default_foreground(self.con, self.color)
-        libtcod.console_put_char(self.con, self.x, self.y, self.char, libtcod.BKGND_NONE)
+    def draw(self, game_map):
+        if libtcod.map_is_in_fov(game_map.fov_map, self.x, self.y):
+            #set the color and then draw the character that represents this object at its position
+            libtcod.console_set_default_foreground(self.con, self.color)
+            libtcod.console_put_char(self.con, self.x, self.y, self.char, libtcod.BKGND_NONE)
 
     def clear(self):
         #erase the character that represents this object

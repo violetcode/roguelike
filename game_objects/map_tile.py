@@ -1,5 +1,9 @@
 import libtcodpy as libtcod
 
+FOV_ALGO = 0  #default FOV algorithm
+FOV_LIGHT_WALLS = True
+TORCH_RADIUS = 10
+
 class Room:
     #a rectangle on the map. used to characterize a room.
     def __init__(self, x, y, w, h):
@@ -27,9 +31,13 @@ class Tile:
         if block_sight is None: block_sight = blocked
         self.block_sight = block_sight
 
+        self.explored = False
+
 class Map:
     color_dark_wall = libtcod.Color(0, 0, 100)
+    color_light_wall = libtcod.Color(130, 110, 50)
     color_dark_ground = libtcod.Color(50, 50, 150)
+    color_light_ground = libtcod.Color(200, 180, 50)
 
     def __init__(self, console, width, height):
         self.con = console
@@ -40,14 +48,29 @@ class Map:
             for y in range(self.height) ]
                 for x in range(self.width) ]
 
+        self.fov_map = libtcod.map_new(self.width, self.height)
+        self.update_fov_map()
+
     def draw(self):
         for y in range(self.height):
             for x in range(self.width):
+                visible = libtcod.map_is_in_fov(self.fov_map, x, y)
                 wall = self.map[x][y].block_sight
-                if wall:
-                    libtcod.console_set_char_background(self.con, x, y, self.color_dark_wall, libtcod.BKGND_SET )
+                if not visible:
+                    #it's out of the player's FOV
+                    #if it's not visible right now, the player can only see it if it's explored
+                    if self.map[x][y].explored:
+                        if wall:
+                            libtcod.console_set_char_background(self.con, x, y, self.color_dark_wall, libtcod.BKGND_SET)
+                        else:
+                            libtcod.console_set_char_background(self.con, x, y, self.color_dark_ground, libtcod.BKGND_SET)
                 else:
-                    libtcod.console_set_char_background(self.con, x, y, self.color_dark_ground, libtcod.BKGND_SET )
+                    #it's visible
+                    if wall:
+                        libtcod.console_set_char_background(self.con, x, y, self.color_light_wall, libtcod.BKGND_SET )
+                    else:
+                        libtcod.console_set_char_background(self.con, x, y, self.color_light_ground, libtcod.BKGND_SET )
+                    self.map[x][y].explored = True
 
     def set_blocked(self, x, y, blocked=True, block_sight=True):
         self.map[x][y].blocked = blocked
@@ -74,3 +97,11 @@ class Map:
         # create a vertical tunnel
         for y in range(min(y1, y2), max(y1, y2) + 1):
             self.set_blocked(x, y, False, False)
+
+    def update_fov_map(self):
+        for y in range(self.height):
+            for x in range(self.width):
+                libtcod.map_set_properties(self.fov_map, x, y, not self.map[x][y].block_sight, not self.map[x][y].blocked)
+
+    def recompute_fov(self, x, y):
+        libtcod.map_compute_fov(self.fov_map, x, y, TORCH_RADIUS, FOV_LIGHT_WALLS, FOV_ALGO)

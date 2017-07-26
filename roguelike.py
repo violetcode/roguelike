@@ -20,8 +20,11 @@ libtcod.console_init_root(SCREEN_WIDTH, SCREEN_HEIGHT, 'Roguelike Game', False)
 con = libtcod.console_new(SCREEN_WIDTH, SCREEN_HEIGHT)
 libtcod.sys_set_fps(LIMIT_FPS)
 
+fov_recompute = True
+
 # Handle user keypresses
 def handle_keys():
+    global fov_recompute
 
     # Fullscreen and exit
     key = libtcod.console_check_for_keypress()
@@ -35,22 +38,32 @@ def handle_keys():
     #movement keys
     if libtcod.console_is_key_pressed(libtcod.KEY_UP):
         player.move(game_map, 0, -1)
+        fov_recompute = True
 
     elif libtcod.console_is_key_pressed(libtcod.KEY_DOWN):
         player.move(game_map, 0, 1)
+        fov_recompute = True
 
     elif libtcod.console_is_key_pressed(libtcod.KEY_LEFT):
         player.move(game_map, -1, 0)
+        fov_recompute = True
 
     elif libtcod.console_is_key_pressed(libtcod.KEY_RIGHT):
         player.move(game_map, 1, 0)
+        fov_recompute = True
 
 def render_all():
+    global fov_recompute
+
+    if fov_recompute:
+        #recompute FOV if needed (the player moved or something)
+        fov_recompute = False
+        game_map.recompute_fov(player.x, player.y)
+        game_map.draw()
+
     #draw all objects in the list
     for obj in objects:
-        obj.draw()
-
-    game_map.draw()
+        obj.draw(game_map)
 
     #blit the contents of "con" to the root console and present it
     libtcod.console_blit(con, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 0, 0, 0)
@@ -110,7 +123,7 @@ for r in range(MAX_ROOMS):
 
             #finally, append the new room to the list
             rooms.append(room)
-
+game_map.update_fov_map()
 
 while not libtcod.console_is_window_closed():
 
