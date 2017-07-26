@@ -10,6 +10,10 @@ LIMIT_FPS = 20
 MAP_WIDTH = 80
 MAP_HEIGHT = 45
 
+ROOM_MAX_SIZE = 10
+ROOM_MIN_SIZE = 6
+MAX_ROOMS = 30
+
 # Configure libtcod
 libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
 libtcod.console_init_root(SCREEN_WIDTH, SCREEN_HEIGHT, 'Roguelike Game', False)
@@ -53,21 +57,60 @@ def render_all():
     libtcod.console_flush()
 
 player = BaseObject(con, SCREEN_WIDTH//2, SCREEN_HEIGHT//2, '@')
-npc = BaseObject(con, SCREEN_WIDTH//2 - 5, SCREEN_HEIGHT//2, '@', libtcod.yellow)
-objects = [npc, player]
+objects = [player]
 
 game_map = Map(con, MAP_WIDTH, MAP_HEIGHT)
 
-#create two rooms
-room1 = Room(20, 15, 10, 15)
-room2 = Room(50, 15, 10, 15)
+rooms = []
+for r in range(MAX_ROOMS):
+    # Generates the rooms and hallways
+    # random width and height
+    w = libtcod.random_get_int(0, ROOM_MIN_SIZE, ROOM_MAX_SIZE)
+    h = libtcod.random_get_int(0, ROOM_MIN_SIZE, ROOM_MAX_SIZE)
+    # random position without going out of the boundaries of the map
+    x = libtcod.random_get_int(0, 0, MAP_WIDTH - w - 1)
+    y = libtcod.random_get_int(0, 0, MAP_HEIGHT - h - 1)
 
-game_map.create_room(room1)
-game_map.create_room(room2)
-game_map.create_h_tunnel(25, 55, 23)
+    room = Room(x, y, w, h)
+    failed = False
+    for other_room in rooms:
+        if room.intersect(other_room):
+            failed = True
+            break
 
-player.x = 25
-player.y = 23
+    if not failed:
+        #this means there are no intersections, so this room is valid
+        #"paint" it to the map's tiles
+            game_map.create_room(room)
+
+            #center coordinates of new room, will be useful later
+            (new_x, new_y) = room.center()
+
+            num_rooms = len(rooms)
+            if num_rooms == 0:
+                #this is the first room, where the player starts at
+                player.x = new_x
+                player.y = new_y
+            else:
+                # this isn't the first room
+                #connect it to the previous room with a tunnel
+
+                #center coordinates of previous room
+                (prev_x, prev_y) = rooms[num_rooms-1].center()
+
+                #draw a coin (random number that is either 0 or 1)
+                if libtcod.random_get_int(0, 0, 1) == 1:
+                    #first move horizontally, then vertically
+                    game_map.create_h_tunnel(prev_x, new_x, prev_y)
+                    game_map.create_v_tunnel(prev_y, new_y, new_x)
+                else:
+                    #first move vertically, then horizontally
+                    game_map.create_v_tunnel(prev_y, new_y, prev_x)
+                    game_map.create_h_tunnel(prev_x, new_x, new_y)
+
+            #finally, append the new room to the list
+            rooms.append(room)
+
 
 while not libtcod.console_is_window_closed():
 
