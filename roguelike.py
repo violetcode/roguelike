@@ -1,139 +1,101 @@
 #!/usr/bin/env python
 import libtcodpy as libtcod
-from game_objects import BaseObject, Map, Tile, Room
+from entity import Entity, get_blocking_entities_at_location
+from map_objects.game_map import GameMap
+from input_handlers import handle_keys
+from render_functions import clear_all, render_all
+from fov_functions import initialize_fov, recompute_fov
+from game_states import GameStates
 
-# Globals
-SCREEN_WIDTH = 80
-SCREEN_HEIGHT = 50
-LIMIT_FPS = 20
+def main():
+    screen_width = 80
+    screen_height = 50
+    map_width = 80
+    map_height = 45
 
-MAP_WIDTH = 80
-MAP_HEIGHT = 45
+    room_max_size = 10
+    room_min_size = 6
+    max_rooms = 30
 
-ROOM_MAX_SIZE = 10
-ROOM_MIN_SIZE = 6
-MAX_ROOMS = 30
+    fov_algorithm = 0
+    fov_light_walls = True
+    fov_radius = 10
 
-# Configure libtcod
-libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
-libtcod.console_init_root(SCREEN_WIDTH, SCREEN_HEIGHT, 'Roguelike Game', False)
-con = libtcod.console_new(SCREEN_WIDTH, SCREEN_HEIGHT)
-libtcod.sys_set_fps(LIMIT_FPS)
+    max_monsters_per_room = 3
 
-fov_recompute = True
+    colors = {
+        'dark_wall': libtcod.Color(0, 0, 100),
+        'dark_ground': libtcod.Color(50, 50, 150),
+        'light_wall': libtcod.Color(130, 110, 50),
+        'light_ground': libtcod.Color(200, 180, 50)
+    }
 
-# Handle user keypresses
-def handle_keys():
-    global fov_recompute
+    player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True)
+    entities = [player]
 
-    # Fullscreen and exit
-    key = libtcod.console_check_for_keypress()
-    if key.vk == libtcod.KEY_ENTER and key.lalt:
-        #Alt+Enter: toggle fullscreen
-        libtcod.console_set_fullscreen(not libtcod.console_is_fullscreen())
+    libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
 
-    elif key.vk == libtcod.KEY_ESCAPE:
-        return True  #exit game
+    libtcod.console_init_root(screen_width, screen_height, 'Roguelike Game', False)
 
-    #movement keys
-    if libtcod.console_is_key_pressed(libtcod.KEY_UP):
-        player.move(game_map, 0, -1)
-        fov_recompute = True
+    con = libtcod.console_new(screen_width, screen_height)
 
-    elif libtcod.console_is_key_pressed(libtcod.KEY_DOWN):
-        player.move(game_map, 0, 1)
-        fov_recompute = True
+    game_map = GameMap(map_width, map_height)
+    game_map.make_map(max_rooms, room_min_size, room_max_size, map_width, map_height, player, entities, max_monsters_per_room)
 
-    elif libtcod.console_is_key_pressed(libtcod.KEY_LEFT):
-        player.move(game_map, -1, 0)
-        fov_recompute = True
+    fov_recompute = True
 
-    elif libtcod.console_is_key_pressed(libtcod.KEY_RIGHT):
-        player.move(game_map, 1, 0)
-        fov_recompute = True
+    fov_map = initialize_fov(game_map)
 
-def render_all():
-    global fov_recompute
+    key = libtcod.Key()
+    mouse = libtcod.Mouse()
 
-    if fov_recompute:
-        #recompute FOV if needed (the player moved or something)
+    game_state = GameStates.PLAYERS_TURN
+
+    while not libtcod.console_is_window_closed():
+        libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS, key, mouse)
+
+        if fov_recompute:
+            recompute_fov(fov_map, player.x, player.y, fov_radius, fov_light_walls, fov_algorithm)
+
+        render_all(con, entities, game_map, fov_map, fov_recompute, screen_width, screen_height, colors)
         fov_recompute = False
-        game_map.recompute_fov(player.x, player.y)
-        game_map.draw()
+        libtcod.console_flush()
 
-    #draw all objects in the list
-    for obj in objects:
-        obj.draw(game_map)
+        clear_all(con, entities)
 
-    #blit the contents of "con" to the root console and present it
-    libtcod.console_blit(con, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 0, 0, 0)
-    libtcod.console_flush()
+        action = handle_keys(key)
 
-player = BaseObject(con, SCREEN_WIDTH//2, SCREEN_HEIGHT//2, '@')
-objects = [player]
+        move = action.get('move')
+        exit = action.get('exit')
+        fullscreen = action.get('fullscreen')
 
-game_map = Map(con, MAP_WIDTH, MAP_HEIGHT)
+        if move and game_state == GameStates.PLAYERS_TURN:
+            dx, dy = move
+            destination_x = player.x + dx
+            destination_y = player.y + dy
 
-rooms = []
-for r in range(MAX_ROOMS):
-    # Generates the rooms and hallways
-    # random width and height
-    w = libtcod.random_get_int(0, ROOM_MIN_SIZE, ROOM_MAX_SIZE)
-    h = libtcod.random_get_int(0, ROOM_MIN_SIZE, ROOM_MAX_SIZE)
-    # random position without going out of the boundaries of the map
-    x = libtcod.random_get_int(0, 0, MAP_WIDTH - w - 1)
-    y = libtcod.random_get_int(0, 0, MAP_HEIGHT - h - 1)
+            if not game_map.is_blocked(destination_x, destination_y):
+                target = get_blocking_entities_at_location(entities, destination_x, destination_y)
 
-    room = Room(x, y, w, h)
-    failed = False
-    for other_room in rooms:
-        if room.intersect(other_room):
-            failed = True
-            break
-
-    if not failed:
-        #this means there are no intersections, so this room is valid
-        #"paint" it to the map's tiles
-            game_map.create_room(room)
-
-            #center coordinates of new room, will be useful later
-            (new_x, new_y) = room.center()
-
-            num_rooms = len(rooms)
-            if num_rooms == 0:
-                #this is the first room, where the player starts at
-                player.x = new_x
-                player.y = new_y
-            else:
-                # this isn't the first room
-                #connect it to the previous room with a tunnel
-
-                #center coordinates of previous room
-                (prev_x, prev_y) = rooms[num_rooms-1].center()
-
-                #draw a coin (random number that is either 0 or 1)
-                if libtcod.random_get_int(0, 0, 1) == 1:
-                    #first move horizontally, then vertically
-                    game_map.create_h_tunnel(prev_x, new_x, prev_y)
-                    game_map.create_v_tunnel(prev_y, new_y, new_x)
+                if target:
+                    print('You kick the ' + target.name + ' in the shins, much to its annoyance!')
                 else:
-                    #first move vertically, then horizontally
-                    game_map.create_v_tunnel(prev_y, new_y, prev_x)
-                    game_map.create_h_tunnel(prev_x, new_x, new_y)
+                    player.move(dx, dy)
+                    fov_recompute = True
+                game_state = GameStates.ENEMY_TURN
 
-            #finally, append the new room to the list
-            rooms.append(room)
-game_map.update_fov_map()
+        if exit:
+            return True
 
-while not libtcod.console_is_window_closed():
+        if fullscreen:
+            libtcod.console_set_fullscreen(not libtcod.console_is_fullscreen())
 
-    render_all()
+        if game_state == GameStates.ENEMY_TURN:
+            for entity in entities:
+                if entity != player:
+                    print('The ' + entity.name + ' ponders the meaning of its existence.')
 
-    #erase all objects at their old locations, before they move
-    for obj in objects:
-        obj.clear()
+            game_state = GameStates.PLAYERS_TURN
 
-    #handle keys and exit game if needed
-    exit = handle_keys()
-    if exit:
-        break
+if __name__ == '__main__':
+    main()
